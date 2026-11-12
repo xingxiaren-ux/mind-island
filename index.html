@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>心靈島 3D</title>
+<style>
+:root{--pn:rgba(255,255,255,.92);--tx:#1d2b2a;--mut:#5b6f6d;--ac:#2a9d8f;--bd:#cfe3e0;--ok:#e3f6ee;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--pn:rgba(20,36,34,.92);--tx:#e6f2f0;--mut:#9bb5b1;--ac:#4cc4b4;--bd:#2b4440;--ok:#1d3a33}}
+:root[data-theme="dark"]{--pn:rgba(20,36,34,.92);--tx:#e6f2f0;--mut:#9bb5b1;--ac:#4cc4b4;--bd:#2b4440;--ok:#1d3a33}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{height:100%;margin:0;overflow:hidden;background:#9bd7ee;color:var(--tx);font:15px/1.6 system-ui,-apple-system,"Noto Sans TC","PingFang TC",sans-serif}
+canvas{position:fixed;inset:0;width:100%;height:100%;touch-action:none;display:block}
+.bar{position:fixed;left:0;right:0;display:flex;gap:6px;padding:8px 10px;flex-wrap:wrap;pointer-events:none}
+.bar>*{pointer-events:auto}
+#top{top:env(safe-area-inset-top,0px)}
+.chip,.tab{background:var(--pn);color:var(--tx);border:1px solid var(--bd);border-radius:999px;padding:6px 13px;font:inherit;font-size:.88rem;cursor:pointer;backdrop-filter:blur(6px)}
+.tab.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.brand{font-weight:700;margin-right:auto;padding:6px 4px;text-shadow:0 1px 3px rgba(255,255,255,.7);color:#134e4a}
+#chips{top:calc(env(safe-area-inset-top,0px) + 46px)}
+#time{bottom:calc(env(safe-area-inset-bottom,0px) + 4px);justify-content:center;align-items:center}
+#time input{width:110px;accent-color:var(--ac)}
+.tag{position:fixed;left:0;top:0;transform:translate(-50%,-100%);background:var(--pn);border:1px solid var(--bd);border-radius:12px;padding:3px 10px;font-size:.8rem;white-space:nowrap;cursor:pointer;color:var(--tx);display:none}
+.tag.on{border-color:var(--ac);box-shadow:0 0 0 2px var(--ac)}
+.nb{font-size:1.25rem;padding:0 6px;border-radius:999px}
+#sheet{position:fixed;left:8px;right:8px;bottom:calc(env(safe-area-inset-bottom,0px) + 50px);max-width:520px;margin:0 auto;background:var(--pn);border:1px solid var(--bd);border-radius:18px;padding:14px 16px;max-height:46vh;overflow:auto;backdrop-filter:blur(8px);display:none}
+#sheet h2{margin:0 0 2px;font-size:1.1rem}#sheet p{margin:.4em 0}
+.mut{color:var(--mut);font-size:.85rem}
+.btn{display:block;width:100%;margin-top:8px;padding:10px;border-radius:12px;border:1px solid var(--ac);background:var(--ac);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+.row{display:flex;gap:8px;align-items:center;width:100%;text-align:left;background:transparent;color:var(--tx);border:1px solid var(--bd);border-radius:12px;padding:9px 12px;margin:6px 0;font:inherit;cursor:pointer}
+.row.on{border-color:var(--ac);background:var(--ok)}
+.tip{background:var(--ok);border-radius:10px;padding:8px 10px;margin:6px 0}
+#load{position:fixed;inset:0;background:linear-gradient(#7ec8e3,#e6f6f3);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:9;transition:opacity .7s;color:#134e4a;text-align:center}
+#load h1{font-size:2.4rem;line-height:1.1;margin:0;letter-spacing:2px}
+#load button{padding:11px 30px;border-radius:999px;border:0;background:#2a9d8f;color:#fff;font:inherit;font-weight:700;cursor:pointer}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="top" class="bar"><span class="brand">⛵ 心靈島</span><button class="tab on" data-t="all">全景</button><button class="tab" data-t="task">🎯 任務 <span id="prog">0/5</span></button><button class="tab" data-t="role">選擇角色</button></div>
+<div id="chips" class="bar"></div>
+<div id="tags"></div>
+<div id="sheet"></div>
+<div id="time" class="bar"><button class="chip" id="pp">⏸</button><span class="chip" id="clk">12:00 白天</span><input id="sl" type="range" min="0" max="24" step="0.1" value="12" aria-label="時間"><button class="chip" id="sp">4×</button><button class="chip" id="now">現在</button></div>
+<div id="load"><div style="font-size:3rem">⛵</div><h1>MIND<br>ISLAND.</h1><div class="mut">一起來當島民吧 · 社會情緒學習</div><button id="go">準備出發</button></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const ROLES={T:{n:"受困者",e:"🌧️",c:0x6c9bd1,d:"帶著情緒困境的人：練習覺察並說出自己的感受與需要。"},G:{n:"引導者",e:"🧭",c:0x4fae93,d:"傾聽與提問的人：反映情緒、開放提問，不急著給答案。"},S:{n:"解決問題者",e:"🛠️",c:0xe39a4f,d:"徵得同意再行動的人：先聽懂，再一起擬定小步驟。"}};
+const Z=[
+{n:"情緒灣",a:"自我覺察",e:"🌊",p:[-11.5,5.2],npc:"小潮",s:"小潮最近心跳很快、不想說話，卻說不出是怎麼了。",t:{T:"試著說：「我覺得…因為…我需要…」",G:"問：「如果用天氣形容現在的心情，會是什麼？」",S:"先問：「你希望我陪你練習，還是只想有人聽你說？」"},q:"今天你的心情是什麼天氣？"},
+{n:"平靜山",a:"自我管理",e:"⛰️",p:[-9.5,-4.2],npc:"阿焰",s:"阿焰被同學弄壞了作品，氣到想衝過去大吼。",t:{T:"先走開，做 4 次深呼吸，冷靜後再表達。",G:"說：「你很在意那份作品對吧？我們先坐一下。」",S:"一起練習用「我訊息」說出感受與請求。"},q:"生氣時，你的身體會有什麼訊號？"},
+{n:"共感村",a:"社會覺察",e:"🏘️",p:[-.5,-7.8],npc:"米奇",s:"米奇是新來的轉學生，午餐時總是一個人坐在角落。",t:{T:"說：「我有點緊張，慢慢聊可以嗎？」",G:"想像剛轉學的感受：「我可以陪你一下嗎？」",S:"先問他的興趣，再安排他覺得舒服的小互動。"},q:"你曾經是「新來的人」嗎？當時需要什麼？"},
+{n:"橋樑港",a:"人際關係",e:"🌉",p:[10,-2],npc:"小海與小浪",s:"兩位好友因誤會吵架，友誼之橋斷了一半。",t:{T:"說：「那天我說得太重了，我很在意我們的友誼。」",G:"輪流傾聽，並複述各自的感受與需要。",S:"徵得雙方同意，約安靜的時間訂下溝通約定。"},q:"上次和朋友和好，是誰先開口？怎麼說的？"},
+{n:"抉擇森林",a:"負責任的決定",e:"🌲",p:[8.5,6.8],npc:"小森",s:"朋友邀小森一起散布班上某人的糗照，說「大家都在玩」。",t:{T:"拒絕並說明：「這會傷害別人，我不想參與。」",G:"說：「你擔心被排擠，也不想傷害別人，你有哪些選擇？」",S:"一起評估後果，並找信任的大人協助被傷害的人。"},q:"「大家都在做」是好理由嗎？為什麼？"}];
+const $=s=>document.querySelector(s);
+const st={role:"T",done:new Set(),cur:-1,hour:12,speed:4,play:true};
+// ---- three ----
+const cv=$("#c"),ren=new THREE.WebGLRenderer({canvas:cv,antialias:true});ren.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene(),cam=new THREE.PerspectiveCamera(50,1,.1,300);
+const amb=new THREE.AmbientLight(0xffffff,.5),sun=new THREE.DirectionalLight(0xffffff,.9);scene.add(amb,sun);
+const fire=new THREE.PointLight(0xff8a3d,0,14);
+const sm=t=>{t=Math.min(1,Math.max(0,t));return t*t*(3-2*t)};
+function hAt(x,z){const r=Math.hypot(x,z),a=Math.atan2(z,x),rb=17*(1+.09*Math.sin(2*a+.6)+.06*Math.sin(3*a+1.3)),d=(rb-r)/rb;
+ let h=d>0?sm(d/.22)*1.1+.06*Math.sin(x*1.7)*Math.cos(z*1.3)*sm(d/.3):-.5*sm(-d/.3)-.1;
+ h-=2.3*Math.exp(-Math.pow(Math.hypot(x-Z[0].p[0],z-Z[0].p[1])/3.2,2));
+ h+=8*Math.pow(Math.max(0,1-Math.hypot(x-Z[1].p[0],z-Z[1].p[1])/5.5),1.3);return Math.max(h,-.6)}
+{const g=new THREE.PlaneGeometry(64,64,160,160);g.rotateX(-Math.PI/2);const p=g.attributes.position,col=[];
+ for(let i=0;i<p.count;i++){const y=hAt(p.getX(i),p.getZ(i));p.setY(i,y);const c=new THREE.Color(y<.3?0xe9d9a6:y<3?0x7cc576:y<5?0x8a8f98:0xf4f6f8);col.push(c.r,c.g,c.b)}
+ g.setAttribute("color",new THREE.Float32BufferAttribute(col,3));g.computeVertexNormals();
+ scene.add(new THREE.Mesh(g,new THREE.MeshLambertMaterial({vertexColors:true,flatShading:true})))}
+const sea=new THREE.Mesh(new THREE.PlaneGeometry(300,300),new THREE.MeshPhongMaterial({color:0x3aa6c8,transparent:true,opacity:.72,shininess:80}));
+sea.rotation.x=-Math.PI/2;sea.position.y=.12;scene.add(sea);
+const mat=c=>new THREE.MeshLambertMaterial({color:c,flatShading:true});
+function put(m,x,z,dy=0){m.position.set(x,hAt(x,z)+dy,z);scene.add(m);return m}
+// 反思篝火
+const camp=new THREE.Group();camp.position.set(0,hAt(0,0),0);
+for(let i=0;i<6;i++){const s=new THREE.Mesh(new THREE.SphereGeometry(.28,6,5),mat(0x8d8d8d));s.position.set(Math.cos(i*1.047)*1.1,.15,Math.sin(i*1.047)*1.1);camp.add(s)}
+const flame=new THREE.Mesh(new THREE.ConeGeometry(.4,1.1,6),new THREE.MeshBasicMaterial({color:0xff7a2f}));flame.position.y=.6;camp.add(flame,fire);fire.position.y=1;scene.add(camp);
+// 烏雲與徽章
+const clouds=Z.map(z=>{const g=new THREE.Group();[[-.8,0,.8],[0,.3,1.1],[.8,0,.8]].forEach(([x,y,r])=>{const s=new THREE.Mesh(new THREE.SphereGeometry(r,10,8),new THREE.MeshLambertMaterial({color:0x7d8798,transparent:true}));s.position.set(x,y,0);g.add(s)});
+ g.position.set(z.p[0],hAt(...z.p)+4.2,z.p[1]);scene.add(g);return g});
+const badges=Z.map(z=>{const m=new THREE.Mesh(new THREE.TorusGeometry(.7,.14,8,24),new THREE.MeshBasicMaterial({color:0xf2b134}));m.position.set(z.p[0],hAt(...z.p)+3.6,z.p[1]);m.visible=false;scene.add(m);return m});
+// 角色棋子
+const lm=c=>new THREE.MeshLambertMaterial({color:c});
+const SP=(g,r,c,x,y,z,sx=1,sy=1,sz=1,rz=0)=>{const m=new THREE.Mesh(new THREE.SphereGeometry(r,16,12),lm(c));m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.rotation.z=rz;g.add(m);return m};
+const ARC=(g,x,y,z,r,flip,c=0x243b38)=>{const m=new THREE.Mesh(new THREE.TorusGeometry(r,.035,6,14,Math.PI),lm(c));m.position.set(x,y,z);if(flip)m.rotation.z=Math.PI;g.add(m)};
+const BAR=(g,x,y,z,w,rz,c)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,.06,.06),lm(c));m.position.set(x,y,z);m.rotation.z=rz;g.add(m)};
+function makeChar(k){
+ const g=new THREE.Group(),body={T:0x6c9bd1,G:0x5fb59a,S:0xe39a4f}[k],skin={T:0xF6F1E7,G:0xF0CF9C,S:0xC99A6B}[k];
+ SP(g,.64,body,0,.64,0,1,.95,.9);
+ [-1,1].forEach(s=>{SP(g,.22,skin,s*.3,.12,.28,1,.6,1.3);SP(g,.2,body,s*.66,.66,.1,.8,1.3,.8,-s*.25);SP(g,.2,0xf4a6a0,s*.5,1.28,.62,1,.7,.4)});
+ SP(g,.86,skin,0,1.55,0);
+ if(k==="T"){
+  [-1,1].forEach(s=>{SP(g,.23,skin,s*.92,1.25,0,.7,2.3,.6,s*.2);SP(g,.1,0xf4c6c6,s*.92,1.2,.12,.5,1.8,.3,s*.2);SP(g,.1,0x243b38,s*.3,1.55,.76,1,1.25,.6);BAR(g,s*.3,1.8,.78,.34,-s*.35,0x8a7a66)});
+  SP(g,.09,0xe59aa0,0,1.4,.82,1.2,.9,.8);ARC(g,0,1.2,.8,.12,false);SP(g,.07,0x8fd0f0,-.38,1.36,.78,.8,1.3,.6);
+  const c=new THREE.Group();[[-.4,0,.3],[0,.18,.42],[.4,0,.3]].forEach(([x,y,r])=>SP(c,r,0x8794a8,x,y,0));c.position.set(0,3.1,0);g.add(c);g.userData.cloud=c;
+ }else if(k==="G"){
+  [-1,1].forEach(s=>{const a=new THREE.Mesh(new THREE.CylinderGeometry(.04,.06,.7,6),lm(0x8a5a3b));a.position.set(s*.42,2.45,0);a.rotation.z=-s*.45;g.add(a);SP(g,.2,0x7cc576,s*.6,2.78,0,1.3,.5,.5,s*.5);SP(g,.2,skin,s*.82,1.9,0,1.3,.7,.5,-s*.5);ARC(g,s*.3,1.56,.78,.1,false)});
+  SP(g,.38,0xFBEFD8,0,1.3,.58,1.2,.8,.8);SP(g,.1,0x5b3d2a,0,1.42,.9,1.2,.9,.8);ARC(g,0,1.18,.86,.13,true);
+  [-.2,0,.2].forEach((x,i)=>SP(g,.07,0xFFF8EA,x,2.3+(i===1?.05:0),.28));
+  const cp=new THREE.Mesh(new THREE.CylinderGeometry(.17,.17,.05,16),lm(0xffffff));cp.rotation.x=Math.PI/2;cp.position.set(.32,.72,.6);g.add(cp);SP(g,.05,0xe05a47,.32,.76,.64);
+  const L=new THREE.Group();L.position.set(-1.0,.35,.25);L.add(new THREE.Mesh(new THREE.BoxGeometry(.3,.36,.3),new THREE.MeshBasicMaterial({color:0xffd76a})),new THREE.Mesh(new THREE.SphereGeometry(.5,12,10),new THREE.MeshBasicMaterial({color:0xffe9a8,transparent:true,opacity:.35})));g.add(L);SP(g,.14,skin,-.9,.55,.2);
+ }else{
+  [-1,1].forEach(s=>{SP(g,.3,skin,s*.66,2.2,0);SP(g,.15,0xE8C7A0,s*.66,2.2,.14,1,1,.5);SP(g,.1,0x243b38,s*.3,1.55,.76,1,1.25,.6);SP(g,.035,0xffffff,s*.3+.02,1.6,.84)});
+  SP(g,.36,0xF1DCC0,0,1.3,.56,1.15,.78,.8);SP(g,.11,0x3a2a22,0,1.42,.9,1.2,.9,.8);ARC(g,0,1.17,.86,.14,true,0x3a2a22);
+  const hat=new THREE.Mesh(new THREE.SphereGeometry(.92,18,10,0,Math.PI*2,0,Math.PI/2),lm(0xf2c230));hat.position.y=1.68;g.add(hat);
+  const br=new THREE.Mesh(new THREE.CylinderGeometry(1.02,1.02,.07,20),lm(0xe0ae1d));br.position.y=1.68;g.add(br);
+  const pk=new THREE.Mesh(new THREE.BoxGeometry(.4,.3,.1),lm(0xcf8636));pk.position.set(0,.55,.56);g.add(pk);
+  const w=new THREE.Group();w.position.set(.95,.8,.3);const hd=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,.9,6),lm(0x9aa5b1));hd.position.y=.35;w.add(hd);SP(w,.18,0x9aa5b1,0,.85,0,1,1,.4);w.rotation.z=-.4;g.add(w);SP(g,.14,skin,.9,.75,.25);
+ }
+ const ring=new THREE.Mesh(new THREE.TorusGeometry(.95,.05,8,32),new THREE.MeshBasicMaterial({color:{T:0x6c9bd1,G:0x4fae93,S:0xe39a4f}[k]}));ring.rotation.x=Math.PI/2;ring.position.y=.05;g.add(ring);g.userData.ring=ring;
+ return g}
+const HOME={T:[-2.4,2.2],G:[0,3.0],S:[2.4,2.2]},CH={};
+for(const k of["T","G","S"]){const g=makeChar(k);g.position.set(HOME[k][0],hAt(...HOME[k]),HOME[k][1]);scene.add(g);CH[k]=g}
+// ===== 豐富的島嶼細節 =====
+const ANIM=[],R_=(a,b)=>a+Math.random()*(b-a),BM=(c,o=1)=>new THREE.MeshBasicMaterial({color:c,transparent:o<1,opacity:o});
+const MS=(geo,m,x,y,z)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);return o};
+const EM=(c,k=.4)=>new THREE.MeshLambertMaterial({color:c,emissive:c,emissiveIntensity:k,flatShading:true});
+const V=Z[2].p,F=Z[4].p,B=Z[0].p,P=Z[3].p;
+// --- 共感村 ---
+function house(x,z,c,rc,s,ry){const g=new THREE.Group();
+ g.add(MS(new THREE.BoxGeometry(1.5*s,1.1*s,1.4*s),mat(c),0,.55*s,0));
+ const r=MS(new THREE.ConeGeometry(1.25*s,.9*s,4),mat(rc),0,1.55*s,0);r.rotation.y=Math.PI/4;g.add(r);
+ g.add(MS(new THREE.BoxGeometry(.35*s,.6*s,.08),mat(0x7a5232),0,.3*s,.72*s),MS(new THREE.BoxGeometry(.3*s,.3*s,.08),BM(0xffe9a8),.45*s,.7*s,.72*s),MS(new THREE.BoxGeometry(.22*s,.5*s,.22*s),mat(0xb5654a),-.4*s,1.8*s,-.2*s));
+ g.rotation.y=ry;put(g,x,z)}
+[[-3.9,-9.6,0xf2c9a0,0xc0563b,1,.3],[2.9,-9.8,0xe9a8a0,0x6a8fcf,1.1,-.3],[-4.3,-6.4,0xa8d1ef,0xd9774a,.95,.9],[3.7,-6.6,0xf5e6a1,0x4fae93,1,-.9],[-1.7,-11.4,0xd9c3f0,0xc0563b,1.15,0],[1.3,-12.2,0xcfe8c8,0xe39a4f,.9,.2],[-6.1,-9,0xf8d7da,0x8d6bb8,.9,1.2],[5.9,-8.6,0xfff0c2,0xc0563b,.95,-1.2]].forEach(a=>house(...a));
+put(MS(new THREE.CylinderGeometry(2.6,2.6,.12,20),mat(0xd8c9a8),0,0,0),V[0],V[1],.02);
+{const w=new THREE.Group();w.add(MS(new THREE.CylinderGeometry(.6,.65,.6,12),mat(0x9a9a9a),0,.3,0),MS(new THREE.CylinderGeometry(.48,.48,.05,12),BM(0x3aa6c8),0,.58,0),MS(new THREE.CylinderGeometry(.05,.05,1.3,6),mat(0x7a5232),-.5,.95,0),MS(new THREE.CylinderGeometry(.05,.05,1.3,6),mat(0x7a5232),.5,.95,0));const r=MS(new THREE.ConeGeometry(.85,.5,4),mat(0xc0563b),0,1.8,0);r.rotation.y=Math.PI/4;w.add(r);put(w,V[0],V[1],.1)}
+[[V[0]-3,V[1]+2.4,0xe05a47],[V[0]+3,V[1]+2.4,0x4f9fe0]].forEach(([x,z,c])=>{const g=new THREE.Group();g.add(MS(new THREE.BoxGeometry(1.6,.6,.8),mat(0x9b6b3f),0,.3,0));const a=MS(new THREE.BoxGeometry(1.9,.1,1.2),mat(c),0,1.5,-.1);a.rotation.x=.3;g.add(a,MS(new THREE.CylinderGeometry(.04,.04,1.5,5),mat(0x7a5232),-.8,.75,.4),MS(new THREE.CylinderGeometry(.04,.04,1.5,5),mat(0x7a5232),.8,.75,.4));[0xff9f43,0xee5253,0x54a0ff].forEach((q,i)=>g.add(MS(new THREE.SphereGeometry(.14,8,6),mat(q),-.5+i*.5,.7,.1)));put(g,x,z)});
+[[-2.6,-1.6],[2.6,-1.6],[-2.2,2.6],[2.2,2.6]].forEach(([dx,dz])=>{const g=new THREE.Group();g.add(MS(new THREE.CylinderGeometry(.05,.07,1.8,6),mat(0x4a4a4a),0,.9,0),MS(new THREE.SphereGeometry(.22,10,8),BM(0xffe9a8),0,1.9,0));put(g,V[0]+dx,V[1]+dz)});
+for(let i=0;i<60;i++){const x=V[0]+R_(-8,8),z=V[1]+R_(-5,6);if(hAt(x,z)>.9)put(MS(new THREE.SphereGeometry(.11,6,5),mat([0xff7aa8,0xffd23f,0xffffff,0xb48cff][i%4]),0,0,0),x,z,.12)}
+function npc(bc,sk,ear,hat){const g=new THREE.Group();SP(g,.34,bc,0,.34,0,1,.95,.9);SP(g,.46,sk,0,.92,0);
+ [-1,1].forEach(s=>{SP(g,.06,0x243b38,s*.17,.96,.4,1,1.2,.6);SP(g,.1,0xf4a6a0,s*.28,.8,.34,1,.7,.4);if(ear===1)SP(g,.15,sk,s*.36,1.3,0);else if(ear===2)g.add(MS(new THREE.ConeGeometry(.15,.32,4),lm(sk),s*.28,1.38,0));else SP(g,.12,sk,s*.42,1.12,0,.7,2,.6,s*.2)});
+ if(hat)g.add(MS(new THREE.ConeGeometry(.4,.45,10),lm(hat),0,1.52,0));ARC(g,0,.78,.43,.07,true);g.add(MS(new THREE.SphereGeometry(1.1,8,6),new THREE.MeshBasicMaterial({visible:false}),0,.9,0));return g}
+const NP=[[-3,-9,1.8,.5,0xe39a4f,0xf2d3b0,2,0],[2,-8.5,1.5,-.6,0x8d6bb8,0xe6c9a0,1,0xf2c230],[-.5,-5.3,1.2,.7,0x5fb59a,0xd9c3a5,3,0],[-4.5,-7,1.2,-.5,0xd9534f,0xf6f1e7,1,0],[3.8,-10,1.4,.4,0x6c9bd1,0xc99a6b,2,0x4fae93],[0,-11,1.5,-.45,0xf2b134,0xf0cf9c,3,0xc0563b]].map(([cx,cz,r,s,bc,sk,ear,hat],i)=>{const g=npc(bc,sk,ear,hat);scene.add(g);return{g,cx,cz,r,s,p:i*1.1,u:0,talk:false}});
+ANIM.push((t,dt)=>NP.forEach(n=>{if(n.talk){n.g.rotation.y=Math.atan2(cam.position.x-n.g.position.x,cam.position.z-n.g.position.z);return}n.u+=dt;const a=n.p+n.u*n.s,x=n.cx+Math.cos(a)*n.r,z=n.cz+Math.sin(a)*n.r*.8;n.g.position.set(x,hAt(x,z)+Math.abs(Math.sin(n.u*6+n.p))*.07,z);n.g.rotation.y=Math.atan2(-Math.sin(a)*n.s,Math.cos(a)*.8*n.s)}));
+// --- 情緒灣：小魚與睡蓮 ---
+const FISH=[];for(let i=0;i<10;i++){const g=new THREE.Group(),c=[0xff9f43,0x54d1db,0xffd23f,0xff6b81,0xa29bfe][i%5];SP(g,.2,c,0,0,0,1.7,1,.6);const tl=MS(new THREE.ConeGeometry(.14,.3,4),mat(c),-.4,0,0);tl.rotation.z=Math.PI/2;g.add(tl);scene.add(g);FISH.push({g,r:R_(.8,2.4),s:R_(.5,1.1)*(i%2?1:-1),ph:R_(0,6),j:i<4})}
+ANIM.push(t=>FISH.forEach(f=>{const a=f.ph+t*f.s,x=B[0]+Math.cos(a)*f.r,z=B[1]+Math.sin(a)*f.r*.8;let y=Math.sin(t*2+f.ph)*.05;if(f.j){const j=(t*.3+f.ph)%1;if(j<.2)y=.12+Math.sin(j/.2*Math.PI)*1.1}f.g.position.set(x,y,z);f.g.rotation.y=Math.atan2(-Math.cos(a)*.8*f.s,-Math.sin(a)*f.s)}));
+for(let i=0;i<8;i++){const a=R_(0,6.28),r=R_(.8,2.4),x=B[0]+Math.cos(a)*r,z=B[1]+Math.sin(a)*r*.8;scene.add(MS(new THREE.CylinderGeometry(.38,.38,.03,12),mat(0x4fae6a),x,.14,z));if(i%3===0)scene.add(MS(new THREE.SphereGeometry(.12,8,6),mat(0xff9ec4),x,.25,z))}
+// --- 抉擇森林：魔幻 ---
+const FC=[0x3fd6b0,0x9b7cf0,0xff8ac2,0x4fe08f];
+for(let i=0;i<10;i++){const a=i*.63+R_(-.2,.2),r=R_(2.8,5.6),g=new THREE.Group(),h=R_(1.6,2.6);g.add(MS(new THREE.CylinderGeometry(.14,.2,.9,6),mat(0x6b4a7a),0,.45,0));[0,.7,1.3].forEach((dy,j)=>g.add(MS(new THREE.ConeGeometry(.95-j*.25,.6*h,8),EM(FC[i%4]),0,.9+dy*h/2.2,0)));put(g,F[0]+Math.cos(a)*r,F[1]+Math.sin(a)*r)}
+for(let i=0;i<7;i++){const a=i*.9+.4,r=R_(1.8,4.6),c=[0xff5d8f,0x5ec8ff,0xb28dff][i%3],s=R_(.7,1.5),g=new THREE.Group();g.add(MS(new THREE.CylinderGeometry(.12*s,.16*s,.6*s,8),mat(0xfff3dc),0,.3*s,0),MS(new THREE.SphereGeometry(.55*s,14,8,0,Math.PI*2,0,Math.PI/2),EM(c,.55),0,.6*s,0));for(let k=0;k<4;k++)g.add(MS(new THREE.SphereGeometry(.07*s,6,5),BM(0xffffff),Math.cos(k*1.6)*.3*s,1.05*s,Math.sin(k*1.6)*.3*s));put(g,F[0]+Math.cos(a)*r,F[1]+Math.sin(a)*r)}
+const PT=new THREE.Group();PT.add(MS(new THREE.TorusGeometry(1.4,.18,10,32),EM(0x9b7cf0,.8),0,1.6,0));
+const sw=MS(new THREE.CircleGeometry(1.28,28),BM(0xb28dff,.5),0,1.6,0),sw2=MS(new THREE.CircleGeometry(.85,28),BM(0x7ff0ff,.45),0,1.6,.03);PT.add(sw,sw2);PT.rotation.y=Math.atan2(-F[0],-F[1]);put(PT,F[0],F[1]);
+const PL=new THREE.PointLight(0xb28dff,1.2,16);PL.position.set(F[0],hAt(...F)+2,F[1]);scene.add(PL);
+const CR=[0x7ff0ff,0xff8ac2,0xb28dff,0x8fffb0,0xffe27a].map(c=>{const m=MS(new THREE.OctahedronGeometry(.3),BM(c,.8),0,0,0);scene.add(m);return m});
+const FF=[...Array(32)].map(()=>{const m=MS(new THREE.SphereGeometry(.08,6,5),BM(0xfff3a0),0,0,0);scene.add(m);return{m,a:R_(0,6.3),r:R_(1,6.5),h:R_(.6,4),s:R_(.2,.7),p:R_(0,6)}});
+ANIM.push(t=>{sw.rotation.z=t*.8;sw2.rotation.z=-t*1.3;sw.scale.setScalar(1+Math.sin(t*2)*.06);PL.intensity=.5+(1-Math.min(1,sun.intensity))*2.2+Math.sin(t*3)*.1;
+ CR.forEach((m,i)=>{const a=t*.5+i*1.256;m.position.set(F[0]+Math.cos(a)*2.4,hAt(...F)+1.8+Math.sin(t*1.5+i)*.4,F[1]+Math.sin(a)*2.4);m.rotation.y=t*2});
+ FF.forEach(f=>{const a=f.a+t*f.s;f.m.position.set(F[0]+Math.cos(a)*f.r,hAt(...F)+f.h+Math.sin(t*2+f.p)*.3,F[1]+Math.sin(a)*f.r);f.m.scale.setScalar(.7+.5*Math.abs(Math.sin(t*3+f.p)))})});
+// --- 橋樑港：棧橋、輪船、燈塔 ---
+scene.add(MS(new THREE.BoxGeometry(12,.16,1.3),mat(0xb07d4a),16,.34,P[1]));
+for(let i=0;i<6;i++)[-.65,.65].forEach(d=>scene.add(MS(new THREE.CylinderGeometry(.07,.07,.9,6),mat(0x6b4a2a),11+i*2,.1,P[1]+d)));
+[[12.5,.3],[13.2,-.3],[19,.2]].forEach(([x,dz])=>scene.add(MS(new THREE.BoxGeometry(.5,.5,.5),mat(0xc49a5a),x,.67,P[1]+dz)));
+function ship(){const g=new THREE.Group(),sh=new THREE.Shape();sh.moveTo(-3,-.9);sh.lineTo(2.2,-.9);sh.lineTo(3.4,0);sh.lineTo(2.2,.9);sh.lineTo(-3,.9);sh.closePath();
+ const hg=new THREE.ExtrudeGeometry(sh,{depth:.9,bevelEnabled:false});hg.rotateX(-Math.PI/2);g.add(new THREE.Mesh(hg,mat(0x2f4b6e)));
+ g.add(MS(new THREE.BoxGeometry(5.2,.1,1.7),mat(0xd9b27a),-.4,.92,0),MS(new THREE.BoxGeometry(2.4,.9,1.3),mat(0xffffff),-.6,1.4,0),MS(new THREE.BoxGeometry(1.3,.7,1.1),mat(0xf3f6f9),-.4,2.15,0),MS(new THREE.CylinderGeometry(.3,.34,1.1,10),mat(0xd9534f),-1.4,2.45,0),MS(new THREE.CylinderGeometry(.35,.35,.18,10),mat(0x333333),-1.4,3.05,0),MS(new THREE.CylinderGeometry(.04,.04,2.2,5),mat(0x7a5232),1.2,2.0,0));
+ [-1,1].forEach(s=>{for(let i=0;i<6;i++)g.add(MS(new THREE.SphereGeometry(.09,6,5),BM(0xffe9a8),-2.4+i*.9,.5,s*.91));[-.9,-.4,.1].forEach(x=>g.add(MS(new THREE.BoxGeometry(.25,.25,.05),BM(0x9fd8ff),x,1.45,s*.66)))});
+ g.userData.puffs=[0,1,2,3].map(()=>{const m=new THREE.Mesh(new THREE.SphereGeometry(1,8,6),new THREE.MeshBasicMaterial({color:0xdddddd,transparent:true,opacity:.5}));g.add(m);return m});return g}
+function sail(){const g=new THREE.Group();g.add(MS(new THREE.BoxGeometry(2.2,.4,.8),mat(0xffffff),0,.2,0),MS(new THREE.CylinderGeometry(.04,.04,2.2,5),mat(0x7a5232),0,1.4,0));const s=MS(new THREE.ConeGeometry(.8,1.9,3),mat(0xff6b6b),0,1.5,0);s.scale.z=.12;g.add(s);return g}
+const puff=(g,t)=>{if(g.userData.puffs)g.userData.puffs.forEach((p,i)=>{const k=(t*.5+i/4)%1;p.position.set(-1.4-k*1.2,3.1+k*2.2,0);p.scale.setScalar(.25+k*.7);p.material.opacity=.55*(1-k)})};
+const BIG=ship();BIG.scale.setScalar(1.15);BIG.position.set(21,-.3,P[1]-3.4);scene.add(BIG);
+const SH=[[ship(),.8,25,.07,1,0],[sail(),1.1,30,.05,-1,2],[sail(),1,34,.04,1,4]].map(([g,s,r,w,d,p])=>{g.scale.setScalar(s);scene.add(g);return{g,r,w:w*d,p}});
+const BU=[[17,3],[20,5],[24,-9],[18,-9],[26,2]].map(([x,z],i)=>{const m=MS(new THREE.SphereGeometry(.25,10,8),mat(i%2?0xffffff:0xe05a47),x,.12,z);scene.add(m);return m});
+{const g=new THREE.Group();let y=0;[0xffffff,0xd9534f,0xffffff,0xd9534f].forEach((c,i)=>{g.add(MS(new THREE.CylinderGeometry(.62-i*.07,.7-i*.07,1.2,12),mat(c),0,y+.6,0));y+=1.2});
+ g.add(MS(new THREE.CylinderGeometry(.5,.5,.5,10),BM(0xffe27a),0,y+.25,0),MS(new THREE.ConeGeometry(.65,.6,10),mat(0xd9534f),0,y+.8,0));
+ const bg=new THREE.Group();bg.add(MS(new THREE.BoxGeometry(6,.12,.5),BM(0xfff3a0,.4),3,y+.25,0));g.add(bg);put(g,12.5,-8);ANIM.push(t=>{bg.rotation.y=t*1.2})}
+const GL=[...Array(5)].map((_,i)=>{const g=new THREE.Group();SP(g,.15,0xffffff,0,0,0,1.4,.8,.8);const w1=SP(g,.18,0xf0f0f0,0,0,.18,.7,.1,1.6),w2=SP(g,.18,0xf0f0f0,0,0,-.18,.7,.1,1.6);scene.add(g);return{g,w1,w2,a:i*1.26,r:R_(4,9),h:R_(7,10)}});
+ANIM.push(t=>{BIG.position.y=-.3+Math.sin(t*1.2)*.05;BIG.rotation.z=Math.sin(t*.9)*.02;puff(BIG,t);
+ SH.forEach(o=>{const a=o.p+t*o.w;o.g.position.set(Math.cos(a)*o.r,.05+Math.sin(t*1.4+o.p)*.06,Math.sin(a)*o.r);o.g.rotation.y=-(a+Math.PI/2*Math.sign(o.w));puff(o.g,t)});
+ BU.forEach((m,i)=>m.position.y=.12+Math.sin(t*1.6+i)*.07);
+ GL.forEach((o,i)=>{const a=o.a+t*.35;o.g.position.set(P[0]+4+Math.cos(a)*o.r,o.h+Math.sin(t+i)*.4,P[1]+Math.sin(a)*o.r);o.g.rotation.y=-a-Math.PI/2;const f=Math.sin(t*8+i)*.5;o.w1.rotation.x=f;o.w2.rotation.x=-f})});
+// ===== 村民對話：SEL 小情境 =====
+const NPD=[
+{n:"小橘",e:"🐱",a:"自我覺察",s:"我今天心跳一直好快，卻不知道自己在煩什麼……",
+ T:["小橘關心地問：「你最近還好嗎？」（你其實也在為明天上台緊張）","「沒事啦，不用管我。」","小橘：「喔……好吧。」可是他看得出你在逞強。","「有點煩，但我也說不上來。」","小橘：「嗯，我懂那種感覺。」","「我有點焦慮，因為明天要上台，我需要有人陪我練習。」","小橘：「我陪你！我們現在就來練習。」"],
+ G:["「別想太多啦。」","小橘低下頭：「喔……」","「要不要深呼吸，慢慢說？」","小橘點點頭：「好像有比較好一點。」","「聽起來身體在提醒你什麼。現在的心情像哪一種天氣？」","小橘想了想：「陰天，因為明天要上台。謝謝你問我。」"],
+ S:["「我幫你把煩惱全部解決掉！」","小橘：「可是我還不知道問題是什麼……」","「要不要去散步轉換心情？」","小橘：「好啊，但我還是不知道在煩什麼。」","「你希望我陪你一起找原因，還是只想有人聽你說？」","小橘：「想先找原因。謝謝你先問我。」"]},
+{n:"阿紫",e:"🐻",a:"自我管理",s:"我比賽輸了，氣到想把球拍摔掉！",
+ T:["阿紫問你：「你生氣的時候，都怎麼辦？」","「我會大吼，然後摔東西。」","阿紫：「呃……那樣後來有比較好嗎？」","「我會忍著，回家再生悶氣。」","阿紫：「憋著也很辛苦吧。」","「我會先走開深呼吸，冷靜後再說出感受。」","阿紫：「這招我也想試試！」"],
+ G:["「這有什麼好氣的。」","阿紫更氣了：「你根本不懂！」","「你看起來很生氣，發生什麼事？」","阿紫：「就是輸了……」但還沒說到真正的感受。","「你很在意這場比賽對吧？先深呼吸，我在這裡。」","阿紫吸了口氣：「對，我很不甘心……謝謝你陪我。」"],
+ S:["「去罵裁判啊！」","阿紫：「這樣只會更糟吧……」","「去跑步發洩一下吧。」","阿紫點頭：「好，我去跑。」但他沒說出真正的感受。","「要不要先冷靜，再一起想怎麼練習才能進步？」","阿紫：「好，等我氣消一點再來。」"]},
+{n:"小綠",e:"🐰",a:"社會覺察",s:"新來的小熊都不跟大家說話，他是不是很高傲？",
+ T:["小綠看著你：「你剛搬來的時候，是什麼感覺？」","「沒什麼感覺。」","小綠：「喔，是嗎……」","「有點不安。」","小綠：「原來你也是。」","「我很緊張，希望有人主動來找我說話。」","小綠：「我懂了！我去找小熊！」"],
+ G:["「對啊，不要理他。」","小綠點頭，小熊那邊的角落更安靜了。","「你為什麼覺得他高傲？」","小綠：「因為他都不回我……」","「他可能剛到、很緊張。換成是你，會需要什麼？」","小綠眼睛一亮：「對耶！我會希望有人來問我！」"],
+ S:["「叫他上台自我介紹吧！」","小綠：「他會不會更緊張？」","「我們去邀請他看看？」","小綠：「好，試試看。」","「先問小熊喜歡什麼，再找他覺得舒服的小活動。」","小綠：「這樣他就不會有壓力了！」"]},
+{n:"阿紅",e:"🐹",a:"人際關係",s:"我和好朋友吵架了，不知道要不要先道歉……",
+ T:["阿紅問你：「如果你和朋友鬧僵了，你會怎麼做？」","「等他先低頭，我才不要先開口。」","阿紅：「可是我們已經三天沒說話了……」","「傳個貼圖暗示一下就好。」","阿紅：「嗯……他可能看不懂吧。」","「我會說：那天我說得太重，我很在意我們的友誼。」","阿紅：「我也想這樣說！」"],
+ G:["「等他先來啦，不要認輸。」","阿紅嘆氣：「可是我真的好想他。」","「你們為什麼吵架？」","阿紅說了事情經過，但還沒提到心裡的感受。","「你心裡其實很想和好，對嗎？你最在意什麼？」","阿紅：「我最怕失去這個朋友……」"],
+ S:["「叫他先道歉！」","阿紅：「那樣只會更僵……」","「傳個貼圖暗示一下就好。」","阿紅：「嗯……但他可能不懂我的意思。」","「要不要我陪你練習怎麼說？先說感受，再說想和好。」","阿紅鬆了口氣：「好，我今天就去找他！」"]},
+{n:"小藍",e:"🐱",a:"負責任的決定",s:"大家都在傳某個同學的糗照，我也好想傳……",
+ T:["小藍悄悄問你：「如果有人傳你的糗照，你會怎麼想？」","「沒差啦，我不在意。」","小藍：「真的嗎？你看起來有點僵。」","「會有點難過。」","小藍：「那個同學一定更難過。」","「我會很受傷，希望有人站出來阻止。」","小藍：「我不傳了！我要去幫他。」"],
+ G:["「傳啊，大家都在玩。」","小藍猶豫了一下，手機卻亮了起來……","「你覺得這樣對嗎？」","小藍：「好像……不太對。」","「你擔心被排擠，也不想傷害別人，對吧？你有哪些選擇？」","小藍：「我可以不傳，還可以告訴老師。」"],
+ S:["「傳了就好，別被發現。」","小藍：「那樣還是會傷到他。」","「你不傳就好，別管別人。」","小藍：「可是那個同學好像很難過……」","「我們一起不傳，並告訴信任的大人，幫助被傷害的人。」","小藍點頭：「對，這才是真正的朋友。」"]},
+{n:"阿黃",e:"🐰",a:"自我覺察與求助",s:"我覺得自己什麼都做不好，好累……",
+ T:["阿黃問你：「你也會覺得很累嗎？」","「還好啦，我不累。」","阿黃：「是喔……」他看起來更孤單了。","「有時候吧。」","阿黃：「原來不只有我。」","「我也會很累，今天想休息，也想有人聽我說。」","阿黃：「謝謝你告訴我，我也想說說看。」"],
+ G:["「你要更努力才行。」","阿黃沉默了，眼眶紅紅的。","「你想說說發生什麼事嗎？」","阿黃：「嗯……有點亂。」","「聽起來你真的很累。最近哪件事讓你特別有壓力？」","阿黃的肩膀放鬆了：「其實是……」他慢慢說了起來。"],
+ S:["「你確實要再加把勁。」","阿黃低下頭：「……」","「別這麼說，你很棒啊！」","阿黃勉強笑了笑：「嗯……」但看起來沒有被聽見。","「我可以怎麼幫你？要不要先把事情寫下來，挑一件最小的開始？」","阿黃：「好，我們先從最小的開始。」"]}];
+const HINT={T:"你的任務：誠實說出自己的感受與需要",G:"你的任務：傾聽、反映感受、開放提問",S:"你的任務：先徵得同意，再一起想小步驟"};
+const FBK={T:["你把感受藏起來，對方很難知道你需要什麼。","你說出了一部分感受，對方開始靠近你。","你說出感受與需要，對方感到被信任。"],G:["急著下結論或說教，對方把心門關上了。","有關心，但還沒碰到對方的感受。","你反映了情緒並開放提問，對方覺得被理解。"],S:["直接替對方決定，忽略了對方的意願。","方案可行，但沒有先確認對方是否需要。","先徵得同意、再一起擬定小步驟，對方有掌控感。"]},MOOD=["😕","🙂","😊"];
+st.npc={};
+const NB=NPD.map((d,i)=>{const e=document.createElement("div");e.className="tag nb";e.textContent="💭";e.onclick=()=>openNpc(i);$("#tags").appendChild(e);return e});
+const vv=new THREE.Vector3(),RC=new THREE.Raycaster(),MV=new THREE.Vector2();
+ANIM.push(()=>NP.forEach((n,i)=>{vv.set(n.g.position.x,n.g.position.y+2.1,n.g.position.z).project(cam);const e=NB[i];if(vv.z<1){e.style.display="block";e.style.left=(vv.x*.5+.5)*innerWidth+"px";e.style.top=(-vv.y*.5+.5)*innerHeight+"px"}else e.style.display="none"}));
+function pickNpc(e){MV.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);RC.setFromCamera(MV,cam);const h=RC.intersectObjects(NP.map(n=>n.g),true)[0];if(!h)return;let o=h.object;while(o&&!NP.some(n=>n.g===o))o=o.parent;const i=NP.findIndex(n=>n.g===o);if(i>=0)openNpc(i)}
+const got=i=>st.npc[i]||{},best=i=>Math.max(-1,...Object.values(got(i)));
+const cnt=()=>NPD.reduce((a,_,i)=>a+Object.values(got(i)).filter(v=>v===2).length,0);
+const rolesLine=i=>Object.keys(ROLES).map(k=>ROLES[k].e+(got(i)[k]===2?"✓":"·")).join(" ");
+function openNpc(i){const d=NPD[i],n=NP[i],k0=st.role,r=ROLES[k0],a=d[k0];NP.forEach(q=>q.talk=false);n.talk=true;st.cur=-1;
+ document.querySelectorAll(".tab").forEach(b=>b.classList.remove("on"));
+ Gl.tg.set(n.g.position.x,n.g.position.y+1,n.g.position.z);Gl.d=8;Gl.p=1.15;Gl.t=Math.atan2(n.g.position.z,n.g.position.x)+.3;
+ const ask=k0==="T"?a[0]:"「"+d.s+"」",arr=k0==="T"?a.slice(1):a;
+ const o=[0,1,2].map(k=>({t:arr[k*2],r:arr[k*2+1],k})).sort(()=>Math.random()-.5);
+ const foot=`<div class="mut">這位村民：${rolesLine(i)}　總進度 ${cnt()} / ${NPD.length*3}</div>`;
+ sheet.style.display="block";
+ sheet.innerHTML=`<h2>${d.e} ${d.n}</h2><div class="mut">${d.a}　你是${r.e}${r.n}</div><p>${ask}</p><div class="mut">${HINT[k0]}</div>`+o.map((q,j)=>`<button class="row" data-k="${j}">${q.t}</button>`).join("")+foot;
+ sheet.onclick=e=>{const b=e.target.closest("[data-k]");if(!b)return;const q=o[+b.dataset.k];st.npc[i]=got(i);st.npc[i][k0]=Math.max(got(i)[k0]??-1,q.k);NB[i].textContent=MOOD[best(i)];
+  const all=Object.keys(ROLES).every(k=>got(i)[k]===2);
+  sheet.innerHTML=`<h2>${d.e} ${d.n}</h2><div class="tip"><b>${r.e} 你說：</b>${q.t}</div><p>${q.r}</p><div class="fb" style="background:var(--ok);border-radius:10px;padding:8px 10px">💬 ${FBK[k0][q.k]}</div>`+(all?`<p>🎉 你用三種角色都好好陪伴過${d.n}了！</p>`:"")+(i===5?`<p class="mut">如果現實中有人說想傷害自己，請馬上告訴信任的大人或專業協助單位。</p>`:"")+`<div class="mut">這位村民：${rolesLine(i)}　總進度 ${cnt()} / ${NPD.length*3}</div><button class="btn" id="again">再試一次</button><button class="btn" id="chg" style="background:transparent;color:var(--tx);border-color:var(--ac)">換個角色再試</button><button class="btn" id="done" style="background:transparent;color:var(--tx);border-color:var(--bd)">完成</button>`;
+  $("#again").onclick=()=>openNpc(i);$("#chg").onclick=()=>openRoles();$("#done").onclick=()=>{n.talk=false;sheet.style.display="none";aim(-1)}}}
+// 相機
+const C={t:.9,p:1.0,d:44,tg:new THREE.Vector3()},Gl={t:.9,p:1.0,d:44,tg:new THREE.Vector3()};
+function aim(i){if(i<0){Object.assign(Gl,{t:.9,p:1.0,d:44});Gl.tg.set(0,0,0)}else{const q=Z[i].p;Gl.tg.set(q[0],hAt(...q),q[1]);Gl.d=13;Gl.p=1.05;Gl.t=Math.atan2(q[1],q[0])+.5}}
+let drag=null,pts=new Map(),pinch=0;
+cv.addEventListener("pointerdown",e=>{cv.setPointerCapture(e.pointerId);pts.set(e.pointerId,e);drag=e});
+cv.addEventListener("pointermove",e=>{if(!pts.has(e.pointerId))return;const o=pts.get(e.pointerId);pts.set(e.pointerId,e);
+ if(pts.size===2){const [a,b]=[...pts.values()],d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);if(pinch)Gl.d=Math.min(75,Math.max(6,Gl.d*pinch/d));pinch=d}
+ else{Gl.t-=(e.clientX-o.clientX)*.006;Gl.p=Math.min(1.45,Math.max(.25,Gl.p-(e.clientY-o.clientY)*.005))}});
+const up=e=>{pts.delete(e.pointerId);pinch=0;if(e.type==="pointerup"&&drag&&Math.hypot(e.clientX-drag.clientX,e.clientY-drag.clientY)<6)pickNpc(e)};cv.addEventListener("pointerup",up);cv.addEventListener("pointercancel",up);
+cv.addEventListener("wheel",e=>{e.preventDefault();Gl.d=Math.min(75,Math.max(6,Gl.d*(1+e.deltaY*.001)))},{passive:false});
+// 標籤
+const tags=Z.map((z,i)=>{const d=document.createElement("div");d.className="tag";d.onclick=()=>openZone(i);$("#tags").appendChild(d);return d});
+$("#chips").innerHTML=Z.map((z,i)=>`<button class="chip" data-z="${i}">${z.e} ${z.n}</button>`).join("");
+$("#chips").onclick=e=>{const b=e.target.closest("[data-z]");if(b)openZone(+b.dataset.z)};
+// 面板
+const sheet=$("#sheet");
+function tab(t){document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.t===t))}
+function openZone(i){st.cur=i;aim(i);tab("task");const z=Z[i],r=ROLES[st.role],ok=st.done.has(i);
+ sheet.style.display="block";sheet.innerHTML=`<h2>${z.e} ${z.n}</h2><div class="mut">${z.a}　島民：${z.npc}</div><p>${z.s}</p><div class="tip"><b>${r.e} 你是${r.n}：</b><br>${z.t[st.role]}</div><p class="mut">反思篝火：${z.q}</p><button class="btn" id="fin">${ok?"已完成 🏅":"完成任務，讓烏雲散去"}</button>`;
+ $("#fin").onclick=()=>{st.done.add(i);openZone(i)};upd()}
+function openTasks(){tab("task");aim(-1);sheet.style.display="block";sheet.innerHTML=`<h2>🎯 島嶼任務</h2><div class="mut">依序探索五個區域，依你選的角色完成任務。</div>`+Z.map((z,i)=>`<button class="row" data-z="${i}">${z.e} <span><b>${z.n}</b> <span class="mut">${z.a}</span></span><span style="margin-left:auto">${st.done.has(i)?"🏅":"☁️"}</span></button>`).join("");
+ sheet.onclick=e=>{const b=e.target.closest("[data-z]");if(b)openZone(+b.dataset.z)}}
+function openRoles(){tab("role");sheet.style.display="block";sheet.innerHTML=`<h2>選擇角色</h2><div class="mut">不同角色，看見的方法不同。</div>`+Object.entries(ROLES).map(([k,r])=>`<button class="row ${k===st.role?"on":""}" data-r="${k}"><span style="font-size:1.5rem">${r.e}</span><span><b>${r.n}</b><br><span class="mut">${r.d}</span></span></button>`).join("");
+ sheet.onclick=e=>{const b=e.target.closest("[data-r]");if(b){st.role=b.dataset.r;openRoles()}}}
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{const t=b.dataset.t;st.cur=-1;if(t==="all"){sheet.style.display="none";aim(-1);tab("all")}else if(t==="task")openTasks();else openRoles()});
+function upd(){$("#prog").textContent=st.done.size+"/5"}
+
+// 時間
+const sl=$("#sl");
+$("#pp").onclick=()=>{st.play=!st.play;$("#pp").textContent=st.play?"⏸":"▶"};
+$("#sp").onclick=()=>{st.speed=st.speed===1?4:st.speed===4?16:1;$("#sp").textContent=st.speed+"×"};
+$("#now").onclick=()=>{const d=new Date();st.hour=d.getHours()+d.getMinutes()/60};
+sl.oninput=()=>{st.hour=+sl.value};
+const cD=new THREE.Color(0x9bd7ee),cS=new THREE.Color(0xf3a46a),cN=new THREE.Color(0x0b1330),sky=new THREE.Color();
+function lighting(){const h=st.hour,a=(h-6)/12*Math.PI,s=Math.sin(a),day=sm(s*3);
+ sun.position.set(Math.cos(a)*40,Math.max(s,.05)*40,15);sun.intensity=.15+.95*day;amb.intensity=.2+.4*day;
+ sky.copy(cN).lerp(cS,sm(s*4+.5)).lerp(cD,day);scene.background=sky;scene.fog=new THREE.Fog(sky,60,150);document.body.style.background="#"+sky.getHexString();
+ sea.material.color.setHex(0x3aa6c8).multiplyScalar(.25+.75*day);fire.intensity=(1-day)*2.2+.3;
+ const H=Math.floor(h)%24,M=Math.floor(h%1*60);$("#clk").textContent=`${String(H).padStart(2,"0")}:${String(M).padStart(2,"0")} ${h<5||h>=19?"夜晚":h<7?"清晨":h<17?"白天":"黃昏"}`;sl.value=h}
+// 迴圈
+function size(){const w=innerWidth,h=innerHeight;ren.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix()}addEventListener("resize",size);size();
+const v=new THREE.Vector3(),clk=new THREE.Clock();
+function loop(){requestAnimationFrame(loop);const dt=clk.getDelta(),t=clk.elapsedTime;
+ if(st.play){st.hour=(st.hour+dt*st.speed*.05)%24}lighting();
+ for(const k of["t","p","d"])C[k]+=(Gl[k]-C[k])*.07;C.tg.lerp(Gl.tg,.07);
+ cam.position.set(C.tg.x+C.d*Math.sin(C.p)*Math.cos(C.t),C.tg.y+C.d*Math.cos(C.p),C.tg.z+C.d*Math.sin(C.p)*Math.sin(C.t));cam.lookAt(C.tg);
+ flame.scale.set(1,.85+Math.sin(t*14)*.15,1);fire.intensity*=.9+Math.random()*.2;
+ clouds.forEach((c,i)=>{const dn=st.done.has(i);c.visible=c.scale.x>.02;c.scale.setScalar(dn?Math.max(0,c.scale.x-dt*1.2):1);c.position.y=hAt(...Z[i].p)+4.2+Math.sin(t+i)*.15;badges[i].visible=dn;badges[i].rotation.y=t*2});
+ for(const k in CH){const g=CH[k],on=k===st.role;let tx=HOME[k][0],tz=HOME[k][1];if(on&&st.cur>=0){tx=Z[st.cur].p[0]+1.3;tz=Z[st.cur].p[1]+.6}
+  const dx=tx-g.position.x,dz=tz-g.position.z,mv=Math.hypot(dx,dz)>.15;g.position.x+=dx*.04;g.position.z+=dz*.04;
+  g.position.y=hAt(g.position.x,g.position.z)+(mv?Math.abs(Math.sin(t*8))*.25:Math.sin(t*2+k.charCodeAt(0))*.03+.03);
+  g.rotation.y=Math.atan2(cam.position.x-g.position.x,cam.position.z-g.position.z);g.userData.ring.visible=on;if(g.userData.cloud)g.userData.cloud.position.y=3.1+Math.sin(t*1.6)*.1}
+ ANIM.forEach(f=>f(t,dt));
+ Z.forEach((z,i)=>{v.set(z.p[0],hAt(...z.p)+2,z.p[1]).project(cam);const e=tags[i];if(v.z<1){e.style.display="block";e.style.left=(v.x*.5+.5)*innerWidth+"px";e.style.top=(-v.y*.5+.5)*innerHeight+"px";e.className="tag"+(i===st.cur?" on":"");e.textContent=z.e+" "+z.n+(st.done.has(i)?" 🏅":"")}else e.style.display="none"});
+ ren.render(scene,cam)}
+loop();
+$("#go").onclick=()=>{$("#load").style.opacity=0;setTimeout(()=>$("#load").remove(),700);C.d=70;aim(-1)};
+</script>
+</body>
+</html>
